@@ -1,0 +1,28 @@
+[package]
+name = "connect4"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+color-eyre = "0.6.3"
+crossterm = "0.27.0"
+itertools = "0.12.1"
+rand = "0.8.5"
+ratatui = "0.26.1"
+rayon = "1.10.0" 
+
+[[bin]]
+name = "connect4"
+path = "src/bin/connect4.rs" 
+test = false
+bench = false
+
+[[bin]]
+name = "connect4-tui"
+path = "src/bin/connect4-tui.rs" 
+test = false
+bench = false
+
+
