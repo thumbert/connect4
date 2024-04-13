@@ -12,21 +12,21 @@ type Strategy = fn(&State) -> Move;
 
 // #[derive(Copy)]
 pub struct Player {
-    name: String,
-    strategy: Strategy,
+    pub name: String,
+    pub strategy: Strategy,
 }
 
 impl Clone for Player {
     fn clone(&self) -> Self {
         Self {
             name: self.name.clone(),
-            strategy: self.strategy.clone(),
+            strategy: self.strategy,
         }
     }
 }
 
 #[allow(dead_code)]
-fn random_strategy(state: &State) -> Move {
+pub fn random_strategy(state: &State) -> Move {
     let mut rng = rand::thread_rng();
     let actions = state.actions();
     let m = rng.gen_range(0..actions.len());
@@ -40,10 +40,10 @@ fn random_strategy(state: &State) -> Move {
 }
 
 #[allow(dead_code)]
-fn manual_strategy(state: &State) -> Move {
+pub fn manual_strategy(state: &State) -> Move {
     let mut line = String::new();
     let mut number = 0;
-    while number < 1 || number > 7 {
+    while !(1..=7).contains(&number) {
         let name = if state.moves_player1.len() == state.moves_player2.len() {
             &state.player1.name
         } else {
@@ -59,24 +59,13 @@ fn manual_strategy(state: &State) -> Move {
     (number as u8 - 1) * 6 + state.height[number - 1]
 }
 
-#[allow(dead_code)]
-fn minimax_strategy1(state: &State) -> Move {
-    let max_depth: usize = 2;
-    let actions = state.actions();
-    let values: Vec<_> = actions
-        .iter()
-        .map(|m| {
-            let state_new = state.result(*m);
-            min_value(&state_new, 0, max_depth)
-        })
-        .collect();
-    actions[values.iter().position_max().unwrap()]
-}
 
-#[allow(dead_code)]
-fn minimax_strategy(state: &State) -> Move {
+/// This is called const generics!
+/// https://doc.rust-lang.org/reference/items/generics.html#const-generics
+/// 
+pub fn minimax_strategy_level<const LEVEL: usize>(state: &State) -> Move {
     let mut rng = rand::thread_rng();
-    let max_depth: usize = 6;
+    let max_depth: usize = 2*LEVEL;
     let actions = state.actions();
     let values: Vec<_> = actions
         .par_iter()
@@ -102,23 +91,9 @@ fn minimax_strategy(state: &State) -> Move {
     println!("Candidates are {:?}", candidates);
     println!("Selected index i {}", i);
     actions[candidates[i]]
-}
 
-/// Not quite working yet!
-// fn minimax_strategy_level(level: usize) -> impl Fn(&State) -> Move {
-//     move |state: &State| {
-//         let max_depth: usize = level;
-//         let actions = state.actions();
-//         let values: Vec<_> = actions
-//             .iter()
-//             .map(|m| {
-//                 let state_new = state.result(*m);
-//                 min_value(&state_new, 0, max_depth)
-//             })
-//             .collect();
-//         actions[values.iter().position_max().unwrap()]
-//     }
-// }
+} 
+
 
 fn max_value(state: &State, depth: usize, max_depth: usize) -> i32 {
     let depth = depth + 1;
@@ -150,12 +125,12 @@ fn min_value(state: &State, depth: usize, max_depth: usize) -> i32 {
 }
 
 #[derive(PartialEq, Clone)]
-enum StateKind {
+pub enum StateKind {
     Final,
     Live,
 }
 
-fn play(current: State) -> State {
+pub fn play(current: State) -> State {
     let current_state = &current;
     let current_player = if current_state.moves_player1.len() == current_state.moves_player2.len() {
         &current.player1
@@ -170,12 +145,12 @@ fn play(current: State) -> State {
 
 #[derive(Clone)]
 pub struct State {
-    kind: StateKind,
-    player1: Player,
-    player2: Player,
-    moves_player1: Vec<Move>,
-    moves_player2: Vec<Move>,
-    height: [u8; 7],
+    pub kind: StateKind,
+    pub player1: Player,
+    pub player2: Player,
+    pub moves_player1: Vec<Move>,
+    pub moves_player2: Vec<Move>,
+    pub height: [u8; 7],
 }
 
 impl State {
@@ -187,14 +162,14 @@ impl State {
         } else {
             moves2.push(m);
         };
-        let mut height = self.height.clone();
+        let mut height = self.height;
         height[(m / 6) as usize] += 1;
         // println!("Moves player1: {:?}", moves1);
         // println!("Moves player2: {:?}", moves2);
         // println!("Height: {:?}", height);
 
         if self.is_winning_move(m) {
-            return State {
+            State {
                 kind: StateKind::Final,
                 player1: Player {
                     name: self.player1.name.clone(),
@@ -206,10 +181,10 @@ impl State {
                 },
                 moves_player1: moves1,
                 moves_player2: moves2,
-                height: height,
-            };
+                height,
+            }
         } else {
-            return State {
+             State {
                 kind: StateKind::Live,
                 player1: Player {
                     name: self.player1.name.clone(),
@@ -221,8 +196,8 @@ impl State {
                 },
                 moves_player1: moves1,
                 moves_player2: moves2,
-                height: height,
-            };
+                height,
+            }
         }
     }
 
@@ -302,7 +277,7 @@ impl Default for State {
             player2: Player {
                 name: "Bottie".to_string(),
                 // strategy: random_strategy,
-                strategy: minimax_strategy,
+                strategy: minimax_strategy3,
             },
             moves_player1: Vec::new(),
             moves_player2: Vec::new(),
