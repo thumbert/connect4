@@ -1,17 +1,29 @@
 use std::fmt::Debug;
 
+use clap::Parser;
 use color_eyre::{
     eyre::{bail, Ok, WrapErr},
     Result,
 };
 use connect4::tui;
-use connect4::{errors, State};
+use connect4::*;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     prelude::*,
     symbols::border,
     widgets::{block::*, *},
 };
+
+/// Play Connect4 from the terminal line
+#[derive(Parser, Debug)]
+#[command(about, long_about = None)]
+struct Args {
+    /// Level of the AI strength (1-8)
+    #[arg(short, long, default_value="3")]
+    level: usize,
+}
+
+
 
 #[derive(Debug, Default)]
 pub struct App {
@@ -23,7 +35,27 @@ pub struct App {
 impl App {
     /// runs the application's main loop until the user quits
     pub fn run(&mut self, terminal: &mut tui::Tui) -> Result<()> {
-        while !self.exit {
+        let mut state = State {
+            kind: StateKind::Live,
+            player1: Player {
+                name: "Adrian".to_string(),
+                strategy: manual_strategy,
+                // strategy: random_strategy,
+            },
+            player2: Player {
+                name: "Bottie".to_string(),
+                // strategy: random_strategy,
+                // strategy: minimax_strategy3,
+                strategy: minimax_strategy_level::<3>,
+            },
+            moves_player1: Vec::new(),
+            moves_player2: Vec::new(),
+            height: [0; 7],
+        };
+        // self.state = state;
+    
+        while !self.exit || self.state.kind == StateKind::Live {
+            state = play(state);
             terminal.draw(|frame| self.render_frame(frame))?;
             self.handle_events().wrap_err("handle events failed")?;
         }
@@ -47,6 +79,7 @@ impl App {
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         match key_event.code {
+            KeyCode::Char('1') => self.exit(),
             KeyCode::Char('q') => self.exit(),
             KeyCode::Left => self.decrement_counter()?,
             KeyCode::Right => self.increment_counter()?,
@@ -107,10 +140,6 @@ impl Widget for &App {
         let mut contents = vec![
             Line::from(" "),
             Line::from(" "),
-            Line::from(vec![
-                "Enter column number (1-7) and press ".into(),
-                "<Enter>".blue().bold(),
-            ]),
             Line::from(" "),
         ];
         let mut board: Vec<_> = format!("{:#?}", self.state)
@@ -118,6 +147,19 @@ impl Widget for &App {
             .map(|e| Line::from(e.to_string()))
             .collect();
         contents.append(&mut board);
+        contents.append(&mut vec![
+            Line::from(" "),
+            Line::from(" "),
+            Line::from(" "),
+            Line::from(" "),
+            Line::from(" "),
+            Line::from(" "),
+            Line::from(vec![
+                "Enter column number (1-7) and press ".into(),
+                "<Enter>".blue().bold(),
+            ]),
+            Line::from(" "),
+        ]);
         let text_contents = Text::from(contents);
 
         let percent_x = 95;
@@ -138,6 +180,28 @@ impl Widget for &App {
 }
 
 fn main() -> Result<()> {
+    let args = Args::parse();
+    println!("Game level: {}", args.level);
+
+    let mut state = State {
+        kind: StateKind::Live,
+        player1: Player {
+            name: "Adrian".to_string(),
+            strategy: manual_strategy,
+            // strategy: random_strategy,
+        },
+        player2: Player {
+            name: "Bottie".to_string(),
+            // strategy: random_strategy,
+            // strategy: minimax_strategy3,
+            strategy: minimax_strategy_level::<3>,
+        },
+        moves_player1: Vec::new(),
+        moves_player2: Vec::new(),
+        height: [0; 7],
+    };
+
+
     errors::install_hooks()?;
     let mut terminal = tui::init()?;
     App::default().run(&mut terminal)?;
@@ -145,68 +209,4 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn render() {
-        let app = App::default();
-        let mut buf = Buffer::empty(Rect::new(0, 0, 50, 4));
-
-        app.render(buf.area, &mut buf);
-
-        let mut expected = Buffer::with_lines(vec![
-            "┏━━━━━━━━━━━━━ Counter App Tutorial ━━━━━━━━━━━━━┓",
-            "┃                    Value: 0                    ┃",
-            "┃                                                ┃",
-            "┗━ Decrement <Left> Increment <Right> Quit <Q> ━━┛",
-        ]);
-        let title_style = Style::new().bold();
-        let counter_style = Style::new().yellow();
-        let key_style = Style::new().blue().bold();
-        expected.set_style(Rect::new(14, 0, 22, 1), title_style);
-        expected.set_style(Rect::new(28, 1, 1, 1), counter_style);
-        expected.set_style(Rect::new(13, 3, 6, 1), key_style);
-        expected.set_style(Rect::new(30, 3, 7, 1), key_style);
-        expected.set_style(Rect::new(43, 3, 4, 1), key_style);
-
-        // note ratatui also has an assert_buffer_eq! macro that can be used to
-        // compare buffers and display the differences in a more readable way
-        assert_eq!(buf, expected);
-    }
-
-    #[test]
-    fn handle_key_event() {
-        let mut app = App::default();
-        app.handle_key_event(KeyCode::Right.into()).unwrap();
-        assert_eq!(app.counter, 1);
-
-        app.handle_key_event(KeyCode::Left.into()).unwrap();
-        assert_eq!(app.counter, 0);
-
-        let mut app = App::default();
-        app.handle_key_event(KeyCode::Char('q').into()).unwrap();
-        assert_eq!(app.exit, true);
-    }
-
-    #[test]
-    #[should_panic(expected = "attempt to subtract with overflow")]
-    fn handle_key_event_panic() {
-        let mut app = App::default();
-        let _ = app.handle_key_event(KeyCode::Left.into());
-    }
-
-    #[test]
-    fn handle_key_event_overflow() {
-        let mut app = App::default();
-        assert!(app.handle_key_event(KeyCode::Right.into()).is_ok());
-        assert!(app.handle_key_event(KeyCode::Right.into()).is_ok());
-        assert_eq!(
-            app.handle_key_event(KeyCode::Right.into())
-                .unwrap_err()
-                .to_string(),
-            "counter overflow"
-        );
-    }
-}

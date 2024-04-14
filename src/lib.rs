@@ -85,11 +85,11 @@ pub fn minimax_strategy_level<const LEVEL: usize>(state: &State) -> Move {
         .map(|(index, _)| index)
         .collect();
     let i = rng.gen_range(0..candidates.len());
-    println!("Actions are {:?}", actions);
-    println!("Values are {:?}", values);
-    println!("Max value is {}", max_value);
-    println!("Candidates are {:?}", candidates);
-    println!("Selected index i {}", i);
+    // println!("Actions are {:?}", actions);
+    // println!("Values are {:?}", values);
+    // println!("Max value is {}", max_value);
+    // println!("Candidates are {:?}", candidates);
+    // println!("Selected index i {}", i);
     actions[candidates[i]]
 
 } 
@@ -277,7 +277,7 @@ impl Default for State {
             player2: Player {
                 name: "Bottie".to_string(),
                 // strategy: random_strategy,
-                strategy: minimax_strategy3,
+                strategy: minimax_strategy_level::<3>,
             },
             moves_player1: Vec::new(),
             moves_player2: Vec::new(),
